@@ -94,6 +94,7 @@ class StageNode
     
     bool isDepthCanonical;
     bool use_model_names;
+    bool publish_odom_tf;
 
     // A helper function that is executed for each stage model.  We use it
     // to search for models of interest.
@@ -211,6 +212,8 @@ StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool us
   if(!localn.getParam("is_depth_canonical", isDepthCanonical))
     isDepthCanonical = true;
   
+  if(!localn.getParam("publish_odom_tf", publish_odom_tf))
+    publish_odom_tf = true;
 
   // We'll check the existence of the world file, because libstage doesn't
   // expose its failure to open it.  Could go further with checks (e.g., is
@@ -430,6 +433,12 @@ StageNode::WorldCallback()
     //
     this->odomMsgs[r].header.frame_id = mapName("odom", r,static_cast<Stg::Model*>(positionmodels[r]));
     this->odomMsgs[r].header.stamp = sim_time;
+    this->odomMsgs[r].pose.covariance[0]  = 0.01;
+    this->odomMsgs[r].pose.covariance[7]  = 0.01;
+    this->odomMsgs[r].pose.covariance[14] = 99999;
+    this->odomMsgs[r].pose.covariance[21] = 99999;
+    this->odomMsgs[r].pose.covariance[28] = 99999;
+    this->odomMsgs[r].pose.covariance[35] = 0.01;
 
     this->odom_pubs_[r].publish(this->odomMsgs[r]);
 
@@ -439,10 +448,11 @@ StageNode::WorldCallback()
     tf::Transform txOdom(odomQ, 
                          tf::Point(odomMsgs[r].pose.pose.position.x,
                                    odomMsgs[r].pose.pose.position.y, 0.0));
-    tf.sendTransform(tf::StampedTransform(txOdom, sim_time,
-                                          mapName("odom", r,static_cast<Stg::Model*>(positionmodels[r])),
-                                          mapName("base_footprint", r,static_cast<Stg::Model*>(positionmodels[r]))));
-
+    if(publish_odom_tf) {
+      tf.sendTransform(tf::StampedTransform(txOdom, sim_time,
+                                            mapName("odom", r,static_cast<Stg::Model*>(positionmodels[r])),
+                                            mapName("base_footprint", r,static_cast<Stg::Model*>(positionmodels[r]))));
+    }
     // Also publish the ground truth pose and velocity
     Stg::Pose gpose = this->positionmodels[r]->GetGlobalPose();
     tf::Quaternion q_gpose;
@@ -478,6 +488,12 @@ StageNode::WorldCallback()
 
     this->groundTruthMsgs[r].header.frame_id = mapName("odom", r,static_cast<Stg::Model*>(positionmodels[r]));
     this->groundTruthMsgs[r].header.stamp = sim_time;
+    this->groundTruthMsgs[r].pose.covariance[0]  = 0.0001;
+    this->groundTruthMsgs[r].pose.covariance[7]  = 0.0001;
+    this->groundTruthMsgs[r].pose.covariance[14] = 99999;
+    this->groundTruthMsgs[r].pose.covariance[21] = 99999;
+    this->groundTruthMsgs[r].pose.covariance[28] = 99999;
+    this->groundTruthMsgs[r].pose.covariance[35] = 0.0001;
 
     this->ground_truth_pubs_[r].publish(this->groundTruthMsgs[r]);
   }
